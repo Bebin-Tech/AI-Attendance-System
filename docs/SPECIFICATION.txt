@@ -1,0 +1,296 @@
+AIFAMS Master Prompt v2: AI Face Attendance Management System
+Enhanced edition for Codex or any coding agent. Rewritten for clarity, with an operating contract, acceptance criteria per phase, and a larger feature set.
+0. Operating Contract (read first)
+You are a senior full-stack and ML engineer building AIFAMS, a multi-tenant, production-grade attendance platform for colleges.
+How you work
+1. Inspect the workspace before writing anything.
+2. Work one phase at a time (Section 15). Never try to generate the whole system in one response.
+3. For every phase: plan in a few lines, write real files, run the real commands, run the tests, fix failures, then report.
+4. Keep the repository runnable at the end of every phase (docker compose up works, tests pass, migrations apply cleanly).
+5. Maintain docs/PROGRESS.md (what is done, what is next, known issues) and docs/decisions/ (one short ADR per major technical decision).
+6. If a requirement is ambiguous, choose the safest reasonable option, record it in an ADR, and continue. Ask the human only for blocking decisions (credentials, licensing choices, legal policy).
+7. If a library or model is unavailable, incompatible with Python 3.13, or badly licensed, stop, document the problem, and propose a maintained alternative. Do not silently substitute.
+Report format after each phase
+• Files created or changed
+• Commands run and their results (test counts, lint results)
+• Acceptance criteria: pass or fail, with evidence
+• Known gaps and the proposed next step
+Absolute rules
+• No static demos. Every feature has a working UI, API, database layer, validation, error handling and authorization.
+• No TODO placeholders for critical features. No hardcoded demo data outside scripts/seed_dev.py and test fixtures.
+• No fake attendance records. Never mark attendance when verification fails.
+• Never bypass biometric consent. Never log biometric data, tokens or secrets.
+• Never claim 100% accuracy or production readiness of the recognition model without documented testing on representative, consented data.
+1. Mission and Non-Negotiable Principles
+Build a trustworthy attendance system that is accurate, hard to cheat, privacy-respecting and easy for institutions to run.
+Principle
+What it means in practice
+Consent first
+No enrollment or verification without recorded, versioned, withdrawable consent
+One-to-one by default
+Students and staff are verified against their own template after login, never searched against everyone
+Fail safe
+Uncertain results go to human review; failures never become present marks
+Data minimisation
+No raw images stored by default; only encrypted embeddings
+Alternative always available
+A manual, audited attendance route exists for anyone who cannot or will not use biometrics
+Auditability
+Every sensitive action and administrative change is logged immutably
+Tenant isolation
+institution_id enforced at the database, repository and API layers
+2. Users and Roles (RBAC plus scope)
+Permissions are granted by role and narrowed by scope (institution, department, section, own record).
+Role
+Core capabilities
+Super Admin
+Institutions, system admins, global config, licensing, system audit logs, model registry
+College Admin
+Users, academic structure, timetables, policies, bulk import, institutional reports, device registry
+Principal / Dean
+College-wide analytics, approve corrections and condonation, faculty and student reports
+HOD
+Department scope: faculty, students, subject analysis, correction and leave approvals
+Faculty
+Own classes: start, pause, end sessions; monitor live; manual marks with reason; submit corrections
+Staff
+Enroll with consent, check in and out, personal reports, leave requests
+Student
+Enroll with consent, verify, mark attendance, history, percentage, corrections, leave and OD requests
+Parent / Guardian (new)
+Read-only child attendance and shortage alerts, only where the institution enables it and the student or guardian consent is recorded
+Data Protection Officer (new)
+Consent registry, deletion requests, retention reports, biometric access audit, no access to templates
+Authorization is checked in a central policy layer, not scattered in route handlers. Provide a permission matrix test that fails if any endpoint lacks an explicit policy.
+3. Technology Stack (with decisions to verify)
+Backend: Python 3.13, FastAPI, SQLAlchemy 2.x (async), Pydantic v2, Alembic, PostgreSQL 16+, Redis, Celery (or ARQ), structlog, OpenTelemetry.
+AI / CV: OpenCV, ONNX Runtime. Verify Python 3.13 wheel availability before choosing libraries (TensorFlow-based stacks such as DeepFace may lag). Preferred default: OpenCV Zoo YuNet (detection) plus SFace (embedding), both Apache-2.0 and CPU-friendly, behind a FaceEngine interface so models are swappable. Check the licence of any pretrained weights before use; several popular pretrained face models are research or non-commercial only. Record the decision in an ADR.
+Web: React, TypeScript (strict), Vite, Tailwind CSS, shadcn/ui, React Router, TanStack Query, React Hook Form plus Zod, Recharts, Axios, i18next, PWA support.
+Android: Kotlin, Jetpack Compose, Material 3, CameraX, Retrofit plus OkHttp, Room, Hilt, WorkManager, Android Keystore, Play Integrity API, FCM (optional).
+Infrastructure: Docker, Docker Compose, Nginx, GitHub Actions, Prometheus, Grafana, Loki or equivalent, Sentry (optional), MinIO or S3-compatible storage for reports and exports.
+Code quality: ruff, mypy, pytest, pre-commit, ESLint, Prettier, Vitest, Playwright, ktlint, detekt.
+4. Architecture
+Android App ─┐
+             ├─> Nginx ─> FastAPI (REST /api/v1, WebSocket for live dashboards)
+Web App ─────┘                 │
+   Kiosk Mode (new) ───────────┤
+                               ├── Auth and RBAC service
+                               ├── Biometric service (consent, templates, keys)
+                               ├── Face engine (isolated worker, ONNX)
+                               ├── Attendance service (sessions, rules, corrections)
+                               ├── Academic service (structure, timetable, import)
+                               ├── Reporting and analytics service
+                               └── Notification service
+                                         │
+                               PostgreSQL ── Redis ── Celery workers ── Object storage
+• Clients talk only to authenticated REST APIs. WebSockets are used for live session dashboards only.
+• The face engine runs as a separate worker or service with a narrow internal interface: detect, quality, liveness, embed, compare. Attendance business logic never imports ML code directly.
+• Use the repository pattern; services own transactions; routes stay thin.
+• Add an outbox table for reliable notification and webhook delivery.
+5. Biometrics, Consent and Privacy
+5.1 Consent
+• Versioned consent text per institution, with purpose, retention period, who can access, and how to withdraw.
+• Record consent version, timestamp, IP, device, and language shown.
+• Withdrawal immediately disables verification, schedules template deletion, and offers the manual route.
+• Minors or special cases: the institution can require guardian consent; model this in the consent record.
+• Re-consent is required when the consent version or purpose changes.
+5.2 Enrollment
+1. Authenticated user reads the notice and gives consent.
+2. Guided capture of 5 to 8 samples across pose and expression, with real-time guidance (too dark, too far, face covered, multiple faces).
+3. Quality gates: face size, sharpness, brightness, pose angle, occlusion, single face.
+4. Liveness is checked during enrollment too, so spoofed photos cannot become the template.
+5. Generate embeddings, drop raw frames from memory, store the template encrypted (AES-256-GCM with envelope encryption, key version recorded).
+6. Duplicate-enrollment check against other consented templates in the same institution, flagged for human review rather than auto-rejected.
+7. Template carries model version, template version, quality score, and expiry.
+5.3 Verification
+1. Authenticated user selects an active session they are eligible for.
+2. Client captures a short burst of frames with a randomised challenge (turn left or right, look up, smile, or read a digit sequence).
+3. Server checks: exactly one face, quality, liveness, challenge completion, frame timing consistency.
+4. Embedding compared one-to-one with the user's active template using a per-institution calibrated threshold.
+5. Outcome: verified, rejected or manual_review, each with a confidence score and reason codes. A grey band between two thresholds routes to review.
+6. Only verified can create a present or late record, and the server writes the timestamp.
+7. Rate limits and lockouts: repeated failures trigger cooldown and alert the faculty or admin.
+5.4 Presentation-Attack Detection
+Layer several signals; never rely on blink detection alone: active challenge-response, passive texture and moire analysis, screen and print artefact detection, depth and parallax cues from head movement, frame-sequence consistency, and device-side signals (Play Integrity, camera-injection and virtual-camera detection). Document known limitations, build a spoof test kit (printed photo, phone replay, tablet replay, mask where lawful and consented), and report APCER and BPCER.
+5.5 Model Governance (new)
+• model_versions registry with checksum, licence, evaluation metrics, and rollout status.
+• Shadow mode: run a candidate model alongside the active one and compare, without affecting results.
+• Re-enrollment campaigns when a model change requires new templates.
+• Evaluation harness producing FAR, FRR, EER, ROC and DET curves, with per-condition breakdowns (lighting, camera, glasses, demographics where lawfully collected) to detect bias.
+5.6 Privacy Compliance (new)
+• Treat biometric data as sensitive personal data. Design for India's DPDP Act 2023 and be adaptable to GDPR-style requirements; get legal review before launch.
+• Provide a DPIA template, a data-flow diagram, a retention schedule, and a breach-response runbook in docs/.
+• Data subject tools: export my data, delete my biometrics, withdraw consent, view who accessed my data.
+• Automatic retention jobs: expire templates after graduation, separation or inactivity.
+6. Attendance Engine
+6.1 Types and Statuses
+Types: Student, Faculty, Staff, Class, Event, Laboratory, plus Exam Hall and Workshop or Seminar (new). Statuses: Present, Absent, Late, Half Day, On Duty, Leave, Holiday, Excused, plus Pending Review and Manual (new).
+6.2 Sessions
+Fields: session ID, institution, academic year, department, course, semester, section, subject, faculty, room, date, start, end, grace period, status, mode (face, QR plus face, manual), and policy snapshot. Lifecycle: scheduled, open, paused, closed, cancelled. Only faculty with the right scope can transition states, and every transition is audited.
+6.3 Rules
+• One valid record per person per session, enforced by a unique constraint plus transactional upsert logic and idempotency keys, tested under concurrent load.
+• Validate session state and time window, eligibility via enrollment, and server-side timestamps only. No backdating.
+• Configurable late rules and per-institution policy for how late, OD, leave and excused count.
+• Cancelled sessions and holidays are excluded from the denominator.
+• Formula: Attendance % = (eligible present-equivalent sessions / total eligible sessions) x 100.
+• Correction workflow: request, reason, evidence upload, HOD or Principal approval, immutable audit trail, notification.
+6.4 Anti-Proxy Controls (new)
+Combine, per institution policy: rotating session QR or short code displayed in class, geofence or campus Wi-Fi allowlist, BLE classroom beacon proximity, device binding (one primary device per user, approved change flow), mock-location and rooted-device detection, impossible-travel checks, and anomaly alerts (same device marking for several users, repeated borderline scores, odd time patterns).
+6.5 Timetable and Scheduling (new)
+Weekly timetable builder with rooms, periods, clash detection, substitute faculty, swaps, auto-generation of sessions, holiday calendar integration, and faculty reminders.
+6.6 Leave, On-Duty and Condonation (new)
+Leave and OD request workflows with document upload and multi-level approval, auto-applied to affected sessions. Configurable shortage thresholds (for example 75%), condonation requests, exam-eligibility reports, and warning ladders.
+6.7 Kiosk Mode (new, opt-in)
+A registered, locked-down tablet at a gate or lab for staff check-in and check-out. Because no login precedes the scan, restrict matching to an opted-in cohort, require explicit institutional policy and consent, apply stricter thresholds, and log every match. Disabled by default.
+6.8 Manual Route
+Always available, always audited: faculty mark with mandatory reason, or student request with approval. Manual records are labelled and reportable so they can be reviewed for misuse.
+7. Academic Management
+Institutions, departments, courses, academic years, semesters, sections, students, faculty, staff, subjects, faculty-subject mapping, enrollments, rooms (new), batches and lab groups (new), holidays and events (new), and promotion or year rollover (new).
+Bulk import (CSV and Excel): downloadable templates, dry-run validation, row-level error report, idempotent re-import, and rollback of the last import.
+8. Database
+PostgreSQL, UUID primary keys, foreign keys, check constraints, indexes, created_at, updated_at, soft delete where appropriate. Alembic migrations only; no manual schema edits.
+Core tables (from v1): institutions, users, roles, permissions, role_permissions, user_roles, departments, courses, academic_years, semesters, sections, students, faculty, staff, subjects, faculty_subjects, enrollments, biometric_consents, biometric_templates, face_enrollment_sessions, attendance_sessions, attendance_records, attendance_devices, attendance_correction_requests, leave_requests, holidays, notifications, audit_logs, refresh_tokens, system_settings, model_versions.
+Additional tables (new): rooms, timetable_entries, parent_links, guardian_consents, verification_attempts (scores and reason codes, no images), liveness_events, device_bindings, session_qr_tokens, import_jobs, import_errors, report_jobs, api_keys, webhooks, webhook_deliveries, outbox_events, idempotency_keys, retention_policies, data_subject_requests, feature_flags, condonation_requests, anomaly_alerts.
+Key constraints
+• UNIQUE (session_id, user_id) on attendance_records.
+• Partial unique index: one active template per user per model version.
+• Row-level security or enforced tenant filters on every tenant table.
+• Append-only audit_logs (no update or delete privileges for the app role), with hash chaining for tamper evidence.
+• Encrypted fields are never selected by default in ORM queries.
+9. REST API (/api/v1)
+Keep all v1 endpoints: auth (login, refresh, logout, forgot-password), users, students, faculty, biometrics (consent, enroll, verify, delete templates, withdraw-consent), attendance (sessions, mark, records, my-history, correction-requests), and reports (daily, monthly, department, student, faculty, export excel and pdf).
+Additions (new)
+• Auth: /auth/mfa/setup, /auth/mfa/verify, /auth/reset-password, /auth/sessions (list and revoke devices), OIDC SSO.
+• Academic: staff, departments, courses, sections, subjects, rooms, timetable, holidays, import jobs.
+• Attendance: session open, pause, close, cancel; /attendance/live/{session_id} (WebSocket); manual mark; QR token rotation; anomaly alerts.
+• Leave and OD: request, approve, reject; condonation.
+• Privacy: /privacy/my-data, /privacy/delete-request, /privacy/access-log.
+• Admin: device registry, model versions, feature flags, retention policies, audit log search.
+• Integrations: API keys, webhooks, read-only ERP or LMS export endpoints.
+• Operations: /health/live, /health/ready, /metrics (internal only).
+Standards: cursor or page pagination, filtering, sorting, Pydantic validation, consistent error envelope (code, message, details, request_id), rate limiting per user and per IP, idempotency keys on write endpoints, full OpenAPI docs, and contract tests.
+10. Web Application
+Design: premium, restrained SaaS look; light and dark themes; sidebar, top bar, global search, notifications, profile menu, breadcrumbs; data tables with filters, sorting, pagination, column chooser and export; confirmation dialogs, toasts, skeleton loaders, empty and error states. Minimal gradients and animation.
+Quality bars (new): WCAG 2.2 AA accessibility, keyboard navigation, i18n with English plus Tamil and Hindi scaffolding, responsive down to 360 px, PWA install and offline read-only cache, route-level code splitting, and Lighthouse score above 90 for performance and accessibility.
+Dashboards
+• Admin: totals (students, faculty, staff), today's present, absent and late, attendance %, active sessions, department stats, trend charts, anomaly alerts, enrollment coverage, pending approvals.
+• Principal: college-wide trends, shortage lists, approvals queue.
+• HOD: department stats, faculty attendance, subject analysis, approvals, shortage and condonation.
+• Faculty: today's sessions, live roll with real-time updates, quick manual marks with reasons, pending requests, class shortage view.
+• Student: profile, overall and subject-wise %, present, absent and late counts, history calendar, shortage warning with a what-if calculator (how many classes must I attend to reach 75%), corrections, leave and OD.
+• DPO and Biometric Admin (new): consent coverage, withdrawals, deletion queue, verification success rates, FAR and FRR monitoring, model version status.
+Face scanner UI: camera preview, oval positioning guide, live quality hints, liveness challenge prompts, progress states, clear success and rejection messages with next steps, retry with cooldown, and a visible manual alternative.
+11. Android Application
+Screens: Splash, Login, Forgot Password, Dashboard, Face Enrollment, Face Verification, Attendance Confirmation, History, Profile, Notifications, Settings, Help and Support, plus Consent and Privacy Center, Leave and OD, Session QR Scan, and Device Management (new).
+Requirements: CameraX with runtime permissions; ML Kit face detection for on-device guidance only (the server decision is authoritative); tokens in Android Keystore-backed encrypted storage; certificate pinning; Play Integrity attestation; Room as a read-only cache; WorkManager for non-biometric sync; biometric unlock (fingerprint) for app re-entry; FCM notifications; Material 3 with dynamic colour; accessibility and dark theme; minimum SDK 26 and tested on low-end devices.
+Never queue biometric attendance offline or mark it as verified without the server's result. If offline, show a clear message and offer retry or the manual route.
+12. Security
+• Authentication: Argon2id, short-lived JWT access tokens, rotating refresh tokens with reuse detection, secure logout and revoke-all, optional TOTP MFA (mandatory for admin roles), brute-force protection, password policy and breach-list check.
+• Authorization: central policy engine, institution isolation, department and section scoping, resource-level checks, deny by default.
+• Biometric security: encryption at rest and in transit, envelope encryption with key rotation, templates unreadable by the API role except through the biometric service, no biometric payloads in logs or error trackers, no public biometric endpoints, access logging.
+• Application security: HTTPS and HSTS, CORS allowlist, CSRF protection if cookies are used, security headers and CSP, SQLi and XSS prevention, secure uploads (type, size, malware scan hook), request size limits, SSRF protection on webhooks, signed webhook payloads.
+• Supply chain: pinned dependencies, pip-audit, npm audit, Trivy on images, secret scanning, SBOM generation, Dependabot.
+• Deliverables: threat model (STRIDE), abuse-case list, security test plan, and a pre-launch penetration-test checklist in docs/security.md.
+13. Reporting, Analytics and Notifications
+Reports: daily, monthly, department, student, faculty and staff, subject-wise, semester comparison, low-attendance, exam eligibility, manual-attendance audit, verification quality report. Configurable filters, scheduled reports by email, Excel, PDF and CSV exports, printable layouts, and asynchronous generation for large reports.
+Analytics (new): trend and seasonality, early-warning risk scores for students heading toward shortage (simple, explainable rules first, not black-box ML), peak lateness times, session-level heatmaps, and anomaly summaries.
+Notifications: attendance marked, rejected, low attendance, correction requested and decided, leave decided, faculty session reminders, session opening alerts, device-change alerts, consent and retention reminders. Channels: in-app, push, email, optional SMS or WhatsApp via provider adapters, with user preferences, templates, retries and quiet hours.
+14. Deployment and Operations
+Docker images (multi-stage, non-root), Compose for dev and a production profile, Nginx with TLS, environment-based config, secrets via env or secret manager, Alembic migration strategy with backward-compatible releases, health checks, structured logs, metrics dashboards, alerting rules, automated PostgreSQL backups with tested restore, rollback runbook, blue-green or rolling deploy notes, and a CI/CD pipeline (lint, type check, tests, security scans, build, deploy to staging, manual approval to production).
+15. Implementation Phases with Acceptance Criteria
+Phase
+Scope
+Done when
+1
+Repo, structure, tooling, CI skeleton, architecture doc, ADRs
+docker compose up starts all services; CI runs lint and empty tests
+2
+Schema and Alembic migrations, constraints, indexes
+Fresh DB migrates up and down; schema tests pass; ER diagram in docs
+3
+Auth, RBAC, MFA, audit log, tenant isolation
+Permission matrix test passes; cross-tenant access tests fail closed
+4
+Academic management, timetable, bulk import
+Import dry-run and error report work; clash detection tested
+5
+Consent and biometric enrollment, encryption, key rotation
+Withdrawal deletes access; templates never readable via API
+6
+Face engine, quality, liveness, calibration harness
+FAR, FRR, EER and APCER reported on a consented test set
+7
+Sessions and scheduling, QR, geofence, device binding
+State machine tests pass; rotating QR validated
+8
+Attendance processing, duplicates, corrections, leave, condonation
+1,000 concurrent marks yield exactly one record per user
+9
+Web dashboards and scanner UI
+Role-based E2E tests pass; accessibility audit clean
+10
+Android app
+Instrumented tests pass on at least 3 device profiles
+11
+Reports and analytics
+Exports match database totals in reconciliation tests
+12
+Notifications and outbox
+Delivery retries verified; preferences respected
+13
+Security testing and privacy artefacts
+Threat model, DPIA, pen-test checklist complete; scans clean
+14
+Docker, CI/CD, monitoring, backups
+Staging deploy, backup restore and rollback rehearsed
+15
+Documentation and final QA
+Fresh-machine setup works from README alone
+16. Testing and Quality Gates
+• Backend: unit, API, database, authorization matrix, tenant isolation, concurrency and duplicate prevention, attendance math (including boundary and policy variants), consent withdrawal, idempotency, migration tests. Coverage of at least 85% on services.
+• AI: detection, enrollment quality, FAR and FRR at the chosen threshold, lighting, camera, pose and glasses variations, spoof tests (print, replay, mask where lawful), regression test on every model change.
+• Frontend: component, form validation, route guards, role-based UI, API integration (MSW), Playwright E2E, accessibility checks.
+• Android: permission flows, auth, verification flow, network failure, device compatibility, UI tests.
+• Non-functional (new): load test (k6 or Locust) at a realistic peak such as 2,000 simultaneous marks at period start; p95 latency target for verification; chaos test for Redis and worker outages.
+• Gates: no merge unless lint, types, tests and security scans pass.
+17. Windows 10/11 Setup (PowerShell only)
+Prerequisites: Python 3.13, Node.js LTS, Git, VS Code, PostgreSQL, Docker Desktop (for Redis and optionally everything), Android Studio.
+# Backend
+cd backend
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+Copy-Item .env.example .env
+docker run -d --name aifams-redis -p 6379:6379 redis:7
+alembic upgrade head
+uvicorn app.main:app --reload
+
+# Web (new terminal)
+cd web
+npm install
+npm run dev
+
+# Full stack
+docker compose -f infrastructure/docker-compose.yml up --build
+For each step, document the expected output (for example, Alembic prints the applied revisions; Uvicorn shows the running URL; Swagger loads at /docs) and common errors with fixes. Android: open android/ in Android Studio, install the SDK, set API_BASE_URL (use 10.0.2.2 for the emulator), create an emulator or connect a device, then Run. Provide scripts/*.ps1 helpers: setup.ps1, dev.ps1, test.ps1, reset-db.ps1.
+18. Repository Structure
+AI-FACE-ATTENDANCE/
+├── backend/ (app/{api/v1,core,models,schemas,services/{face_recognition,attendance,authentication,reporting,academic,notification,privacy},repositories,middleware,tasks,utils}, migrations, tests, requirements.txt, .env.example)
+├── web/ (src/{components,pages,layouts,hooks,services,context,routes,types,utils,i18n}, public, package.json)
+├── android/ (app, build.gradle.kts)
+├── infrastructure/ (docker, nginx, monitoring, docker-compose.yml)
+├── docs/ (architecture, database, api, security, privacy, installation, runbooks, decisions, PROGRESS.md)
+├── scripts/ (PowerShell and seed_dev.py)
+├── .github/workflows/
+├── .gitignore
+└── README.md
+19. Definition of Done (whole project)
+• All roles can complete their core journeys end to end on web and Android.
+• Enrollment, verification, liveness, manual route and correction flows work with consent enforced.
+• Duplicate attendance is impossible under concurrency; failed verification never marks attendance.
+• Tenant isolation and RBAC proven by automated tests.
+• Recognition metrics documented honestly, with limitations and spoofing results.
+• Docs complete: architecture, API, database, security, privacy, installation, runbooks.
+• CI green, scans clean, backups and rollback rehearsed.
+Begin with Phase 1. Inspect the workspace, propose the plan in a few lines, then build, test and report.

@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pydantic-settings
+SQLAlchemy[asyncio]>=2,<3
+asyncpg
+redis
