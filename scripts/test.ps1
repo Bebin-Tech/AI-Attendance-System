@@ -1,4 +1,8 @@
+param([switch]$RequireDatabase)
 $ErrorActionPreference = 'Stop'
+if ($RequireDatabase -and -not $env:AIFAMS_TEST_DATABASE_URL) {
+    throw 'Set AIFAMS_TEST_DATABASE_URL to a new empty aifams_test* PostgreSQL database.'
+}
 $repo = Split-Path $PSScriptRoot -Parent
 function Invoke-Checked { param([scriptblock]$Command) & $Command; if ($LASTEXITCODE -ne 0) { throw "Check failed with exit code $LASTEXITCODE" } }
 Push-Location (Join-Path $repo 'backend')

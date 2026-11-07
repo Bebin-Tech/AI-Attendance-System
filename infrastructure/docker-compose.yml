@@ -1,7 +1,7 @@
 name: aifams
 services:
   postgres:
-    image: postgres:16.10-alpine
+    image: postgres:16.15-alpine
     environment:
       POSTGRES_DB: aifams
       POSTGRES_USER: aifams
@@ -21,15 +21,33 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+  db-bootstrap:
+    image: postgres:16.15-alpine
+    environment:
+      PGUSER: aifams
+      PGPASSWORD: aifams_local
+      PGDATABASE: aifams
+    volumes: ["./docker/bootstrap-roles.sql:/bootstrap/roles.sql:ro"]
+    command: ["psql", "-h", "postgres", "-v", "ON_ERROR_STOP=1", "-f", "/bootstrap/roles.sql"]
+    depends_on:
+      postgres: { condition: service_healthy }
+  migrate:
+    build: ../backend
+    environment:
+      AIFAMS_MIGRATION_DATABASE_URL: postgresql+asyncpg://aifams:aifams_local@postgres:5432/aifams
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-bootstrap: { condition: service_completed_successfully }
   api:
     build: ../backend
     environment:
-      AIFAMS_DATABASE_URL: postgresql+asyncpg://aifams:aifams_local@postgres:5432/aifams
+      AIFAMS_DATABASE_URL: postgresql+asyncpg://aifams_runtime:aifams_runtime_local@postgres:5432/aifams
       AIFAMS_REDIS_URL: redis://redis:6379/0
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready')"]
       interval: 5s

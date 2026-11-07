@@ -18,4 +18,4 @@ Common problems:
 
 `reset-db.ps1` is destructive and requires the explicit `-ConfirmReset` switch. It removes this Compose project's named database volume. Never use it against institutional data.
 
-No migrations exist in Phase 1. Do not run Alembic until Phase 2 is delivered. Android SDK/emulator setup and production operations will be documented in their implementation phases.
+Phase 2 adds Alembic migrations and separate migration/runtime database identities. Follow the [database guide](../database/README.md) to provision roles, apply revisions and run disposable-database tests. Native development uses web port 5180 and API port 8010; Compose uses 8080 and 8000. Android SDK/emulator setup and production operations will be documented in their implementation phases.

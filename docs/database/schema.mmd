@@ -1,0 +1,372 @@
+erDiagram
+    academic_years {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ academic_years : "institution_id"
+    anomaly_alerts {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ anomaly_alerts : "institution_id"
+    attendance_sessions ||--o{ anomaly_alerts : "session_id"
+    users ||--o{ anomaly_alerts : "user_id"
+    api_keys {
+        uuid id PK
+        uuid institution_id FK
+    }
+    users ||--o{ api_keys : "created_by_user_id"
+    institutions ||--o{ api_keys : "institution_id"
+    attendance_correction_requests {
+        uuid id PK
+        uuid institution_id FK
+    }
+    users ||--o{ attendance_correction_requests : "decided_by_user_id"
+    institutions ||--o{ attendance_correction_requests : "institution_id"
+    attendance_records ||--o{ attendance_correction_requests : "record_id"
+    users ||--o{ attendance_correction_requests : "requested_by_user_id"
+    attendance_devices {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ attendance_devices : "institution_id"
+    attendance_records {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ attendance_records : "institution_id"
+    users ||--o{ attendance_records : "marked_by_user_id"
+    attendance_sessions ||--o{ attendance_records : "session_id"
+    users ||--o{ attendance_records : "user_id"
+    verification_attempts ||--o{ attendance_records : "verification_attempt_id, user_id, session_id, verification_outcome"
+    attendance_sessions {
+        uuid id PK
+        uuid institution_id FK
+    }
+    academic_years ||--o{ attendance_sessions : "academic_year_id"
+    courses ||--o{ attendance_sessions : "course_id"
+    departments ||--o{ attendance_sessions : "department_id"
+    events ||--o{ attendance_sessions : "event_id"
+    faculty ||--o{ attendance_sessions : "faculty_id"
+    institutions ||--o{ attendance_sessions : "institution_id"
+    rooms ||--o{ attendance_sessions : "room_id"
+    sections ||--o{ attendance_sessions : "section_id"
+    semesters ||--o{ attendance_sessions : "semester_id"
+    subjects ||--o{ attendance_sessions : "subject_id"
+    timetable_entries ||--o{ attendance_sessions : "timetable_entry_id"
+    audit_logs {
+        uuid id PK
+        uuid institution_id FK
+    }
+    users ||--o{ audit_logs : "actor_user_id"
+    institutions ||--o{ audit_logs : "institution_id"
+    batch_members {
+        uuid id PK
+        uuid institution_id FK
+    }
+    batches ||--o{ batch_members : "batch_id"
+    institutions ||--o{ batch_members : "institution_id"
+    students ||--o{ batch_members : "student_id"
+    batches {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ batches : "institution_id"
+    sections ||--o{ batches : "section_id"
+    biometric_consents {
+        uuid id PK
+        uuid institution_id FK
+    }
+    guardian_consents ||--o{ biometric_consents : "guardian_consent_id"
+    institutions ||--o{ biometric_consents : "institution_id"
+    consent_notices ||--o{ biometric_consents : "notice_id"
+    users ||--o{ biometric_consents : "user_id"
+    biometric_templates {
+        uuid id PK
+        uuid institution_id FK
+    }
+    biometric_consents ||--o{ biometric_templates : "consent_id"
+    biometric_consents ||--o{ biometric_templates : "consent_id, user_id"
+    institutions ||--o{ biometric_templates : "institution_id"
+    model_versions ||--o{ biometric_templates : "model_version_id"
+    users ||--o{ biometric_templates : "user_id"
+    condonation_requests {
+        uuid id PK
+        uuid institution_id FK
+    }
+    users ||--o{ condonation_requests : "decided_by_user_id"
+    institutions ||--o{ condonation_requests : "institution_id"
+    semesters ||--o{ condonation_requests : "semester_id"
+    students ||--o{ condonation_requests : "student_id"
+    consent_notices {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ consent_notices : "institution_id"
+    courses {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ courses : "department_id"
+    institutions ||--o{ courses : "institution_id"
+    data_subject_requests {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ data_subject_requests : "institution_id"
+    users ||--o{ data_subject_requests : "user_id"
+    departments {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ departments : "institution_id"
+    device_bindings {
+        uuid id PK
+        uuid institution_id FK
+    }
+    attendance_devices ||--o{ device_bindings : "device_id"
+    institutions ||--o{ device_bindings : "institution_id"
+    users ||--o{ device_bindings : "user_id"
+    enrollments {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ enrollments : "institution_id"
+    sections ||--o{ enrollments : "section_id"
+    students ||--o{ enrollments : "student_id"
+    subjects ||--o{ enrollments : "subject_id"
+    events {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ events : "institution_id"
+    rooms ||--o{ events : "room_id"
+    face_enrollment_sessions {
+        uuid id PK
+        uuid institution_id FK
+    }
+    biometric_consents ||--o{ face_enrollment_sessions : "consent_id"
+    biometric_consents ||--o{ face_enrollment_sessions : "consent_id, user_id"
+    institutions ||--o{ face_enrollment_sessions : "institution_id"
+    users ||--o{ face_enrollment_sessions : "user_id"
+    faculty {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ faculty : "department_id"
+    institutions ||--o{ faculty : "institution_id"
+    users ||--o{ faculty : "user_id"
+    faculty_subjects {
+        uuid id PK
+        uuid institution_id FK
+    }
+    faculty ||--o{ faculty_subjects : "faculty_id"
+    institutions ||--o{ faculty_subjects : "institution_id"
+    sections ||--o{ faculty_subjects : "section_id"
+    subjects ||--o{ faculty_subjects : "subject_id"
+    feature_flags {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ feature_flags : "institution_id"
+    guardian_consents {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ guardian_consents : "institution_id"
+    parent_links ||--o{ guardian_consents : "parent_link_id"
+    holidays {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ holidays : "department_id"
+    institutions ||--o{ holidays : "institution_id"
+    idempotency_keys {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ idempotency_keys : "institution_id"
+    users ||--o{ idempotency_keys : "user_id"
+    import_errors {
+        uuid id PK
+        uuid institution_id FK
+    }
+    import_jobs ||--o{ import_errors : "import_job_id"
+    institutions ||--o{ import_errors : "institution_id"
+    import_jobs {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ import_jobs : "institution_id"
+    users ||--o{ import_jobs : "requested_by_user_id"
+    institutions {
+        uuid id PK
+    }
+    leave_requests {
+        uuid id PK
+        uuid institution_id FK
+    }
+    users ||--o{ leave_requests : "decided_by_user_id"
+    institutions ||--o{ leave_requests : "institution_id"
+    users ||--o{ leave_requests : "user_id"
+    liveness_events {
+        uuid id PK
+        uuid institution_id FK
+    }
+    face_enrollment_sessions ||--o{ liveness_events : "enrollment_session_id"
+    institutions ||--o{ liveness_events : "institution_id"
+    verification_attempts ||--o{ liveness_events : "verification_attempt_id"
+    model_versions {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ model_versions : "institution_id"
+    notifications {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ notifications : "institution_id"
+    users ||--o{ notifications : "user_id"
+    outbox_events {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ outbox_events : "institution_id"
+    parent_links {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ parent_links : "institution_id"
+    users ||--o{ parent_links : "parent_user_id"
+    students ||--o{ parent_links : "student_id"
+    permissions {
+        uuid id PK
+    }
+    refresh_tokens {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ refresh_tokens : "institution_id"
+    users ||--o{ refresh_tokens : "user_id"
+    report_jobs {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ report_jobs : "institution_id"
+    users ||--o{ report_jobs : "requested_by_user_id"
+    retention_policies {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ retention_policies : "institution_id"
+    role_permissions {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ role_permissions : "institution_id"
+    roles ||--o{ role_permissions : "role_id"
+    permissions ||--o{ role_permissions : "permission_id"
+    roles {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ roles : "institution_id"
+    rooms {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ rooms : "department_id"
+    institutions ||--o{ rooms : "institution_id"
+    sections {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ sections : "institution_id"
+    semesters ||--o{ sections : "semester_id"
+    semesters {
+        uuid id PK
+        uuid institution_id FK
+    }
+    academic_years ||--o{ semesters : "academic_year_id"
+    courses ||--o{ semesters : "course_id"
+    institutions ||--o{ semesters : "institution_id"
+    session_qr_tokens {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ session_qr_tokens : "institution_id"
+    attendance_sessions ||--o{ session_qr_tokens : "session_id"
+    staff {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ staff : "department_id"
+    institutions ||--o{ staff : "institution_id"
+    users ||--o{ staff : "user_id"
+    students {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ students : "department_id"
+    institutions ||--o{ students : "institution_id"
+    sections ||--o{ students : "section_id"
+    users ||--o{ students : "user_id"
+    subjects {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ subjects : "department_id"
+    institutions ||--o{ subjects : "institution_id"
+    system_settings {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ system_settings : "institution_id"
+    timetable_entries {
+        uuid id PK
+        uuid institution_id FK
+    }
+    academic_years ||--o{ timetable_entries : "academic_year_id"
+    faculty ||--o{ timetable_entries : "faculty_id"
+    institutions ||--o{ timetable_entries : "institution_id"
+    rooms ||--o{ timetable_entries : "room_id"
+    sections ||--o{ timetable_entries : "section_id"
+    subjects ||--o{ timetable_entries : "subject_id"
+    user_roles {
+        uuid id PK
+        uuid institution_id FK
+    }
+    departments ||--o{ user_roles : "department_id"
+    institutions ||--o{ user_roles : "institution_id"
+    roles ||--o{ user_roles : "role_id"
+    sections ||--o{ user_roles : "section_id"
+    users ||--o{ user_roles : "user_id"
+    users {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ users : "institution_id"
+    verification_attempts {
+        uuid id PK
+        uuid institution_id FK
+    }
+    attendance_devices ||--o{ verification_attempts : "device_id"
+    institutions ||--o{ verification_attempts : "institution_id"
+    model_versions ||--o{ verification_attempts : "model_version_id"
+    attendance_sessions ||--o{ verification_attempts : "session_id"
+    biometric_templates ||--o{ verification_attempts : "template_id"
+    biometric_templates ||--o{ verification_attempts : "template_id, user_id, model_version_id"
+    users ||--o{ verification_attempts : "user_id"
+    webhook_deliveries {
+        uuid id PK
+        uuid institution_id FK
+    }
+    institutions ||--o{ webhook_deliveries : "institution_id"
+    outbox_events ||--o{ webhook_deliveries : "outbox_event_id"
+    webhooks ||--o{ webhook_deliveries : "webhook_id"
+    webhooks {
+        uuid id PK
+        uuid institution_id FK
+    }
+    users ||--o{ webhooks : "created_by_user_id"
+    institutions ||--o{ webhooks : "institution_id"

@@ -1,0 +1,15 @@
+# ADR 0003: Shared PostgreSQL schema with enforced tenant boundaries
+
+Status: accepted. Date: 2026-11-07.
+
+Use a shared schema with UUID primary keys, non-null institution_id, tenant-leading indexes, and composite foreign keys referencing UNIQUE(institution_id, id). UUID uniqueness alone does not protect references between institutions. The global permissions catalogue is the only tenantless business catalogue; institutions is the tenant root. Roles and model registries are tenant-scoped. Soft-deleted identities and codes are not recycled implicitly.
+
+Every tenant table and the institution root use ENABLE and FORCE ROW LEVEL SECURITY. Policies deny access when the transaction-local aifams.institution_id setting is absent. Services use tenant_transaction only after Phase 3 authentication/policy checks derive an authorized tenant; arbitrary client tenant IDs are not trusted. RLS does not defend against an actor who already controls the database session, a superuser, a BYPASSRLS role, or the migration owner changing the policy. Composite foreign keys remain an independent constraint even for the owner.
+
+Migrations use a separate privileged connection. aifams_app and aifams_biometric are NOLOGIN/NOBYPASSRLS service groups, not cluster owners. The API cannot read encrypted template columns, write verification decisions/model registries, or update/delete/truncate audit logs. BiometricTemplate maps ciphertext, nonce and wrapped_key as deferred with raiseload. Role-specific API authorization, consent validity, calibration and eligibility remain later-phase services; schema tests are not proof of those workflows.
+
+Audit inserts acquire a transaction-scoped per-institution advisory lock. A trigger assigns a sequential position, previous hash, server timestamps and SHA-256 digest. Hash inputs use epoch timestamps to avoid timezone-dependent verification. Statement triggers reject UPDATE, DELETE and TRUNCATE, including for the migration owner. A database superuser can disable these protections, so this is tamper evidence, not an independently trusted immutable ledger. Future audit schema changes must preserve/version the digest format. Long audit transactions serialize per tenant and must remain short.
+
+Alembic revisions contain frozen schema definitions and SQL, never imports of the changing model metadata. The initial schema and security revision apply in one transaction via upgrade head. Downgrade removes schema objects but retains shared cluster groups and the safer public-schema CREATE revocation. Production pre-provisions groups; first-time development migration needs CREATEROLE. No models, demo records or biometric frames are seeded by migrations.
+
+Reference: [PostgreSQL RLS](https://www.postgresql.org/docs/16/ddl-rowsecurity.html), [Alembic async migration guidance](https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic), [autogeneration limitations](https://alembic.sqlalchemy.org/en/latest/autogenerate.html). Autogenerate drift checks do not prove RLS, trigger or CHECK semantics; explicit database tests cover those protections.

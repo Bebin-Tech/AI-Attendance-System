@@ -1,6 +1,6 @@
 # AIFAMS
 
-AI Face Attendance Management System for colleges. Work proceeds through the 15 phases in the supplied specification. **Phase 1 foundation only: no authentication, attendance processing, or biometric enrollment is available. Not ready for institutional deployment.**
+AI Face Attendance Management System for colleges. Work proceeds through the 15 phases in the supplied specification. **Phases 1–2 provide the application foundation and database schema. Authentication, attendance workflows, and biometric enrollment are not yet available. Not ready for institutional deployment.**
 
 ## Start on Windows
 
@@ -10,7 +10,7 @@ Prerequisites: Docker Desktop with its Linux engine running. For native developm
 docker compose -f infrastructure/docker-compose.yml up --build --wait
 ```
 
-Expected: four running services, all healthy. Open [web](http://localhost:8080), [Swagger](http://localhost:8000/api/v1/docs), [liveness](http://localhost:8000/api/v1/health/live), and [readiness](http://localhost:8000/api/v1/health/ready). The web readiness message is fetched from the API; it contains no sample attendance data.
+Expected: role-bootstrap and migration jobs complete, then four running services become healthy. Open [web](http://localhost:8080), [Swagger](http://localhost:8000/api/v1/docs), [liveness](http://localhost:8000/api/v1/health/live), and [readiness](http://localhost:8000/api/v1/health/ready). The web readiness message is fetched from the API; it contains no sample attendance data.
 
 ```powershell
 .\scripts\setup.ps1
@@ -34,12 +34,12 @@ npm run dev
 
 Native web development opens at http://127.0.0.1:5180 and proxies the API to port 8010. Compose continues to use web port 8080 and API port 8000. Set AIFAMS_API_TARGET before starting Vite to override the native API destination.
 
-Native API readiness requires Postgres and Redis: `docker compose -f infrastructure/docker-compose.yml up -d postgres redis`.
+Native API readiness requires Postgres, runtime roles, migrations, and Redis. Start the database/cache and bootstrap the schema with `docker compose -f infrastructure/docker-compose.yml up --build migrate redis`. See the [database guide and ER diagrams](docs/database/README.md) for native migration and disposable-database test commands.
 
 See [installation](docs/installation/windows.md), [architecture](docs/architecture/overview.md), [decisions](docs/decisions/0001-phased-foundation.md), and [progress and validation](docs/PROGRESS.md).
 
 ## Scope and safety
 
-Compose credentials are local development defaults; ports bind to loopback. There are no user accounts, templates, seeds, or attendance records. Do not expose this configuration to the internet. Production TLS, secret management, tenant policies, jobs, metrics, Android, privacy workflows, and model evaluation belong to later phases. Migrations start in Phase 2; no schema is created on application startup.
+Compose credentials are local development defaults; ports bind to loopback. Migrations create 56 empty tables with tenant RLS, composite foreign keys, restricted template access, and append-only audit protections. They seed no users, templates, or attendance records. Do not expose this configuration to the internet. Authentication and scoped RBAC, production TLS, secret management, jobs, metrics, Android, privacy workflows, and model evaluation belong to later phases. Alembic is the only application-schema writer; API startup does not create tables.
 
 GitHub Actions runs foundation checks and a Compose integration smoke test. Android and service directories reserve structure only, with no claimed implementations. CI execution on GitHub is not implied by local checks.

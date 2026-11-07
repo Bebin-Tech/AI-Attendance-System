@@ -5,6 +5,19 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: aifams_test_admin
+          POSTGRES_PASSWORD: aifams_test_local
+          POSTGRES_DB: aifams_test_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U aifams_test_admin -d aifams_test_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+    env:
+      AIFAMS_TEST_DATABASE_URL: postgresql+asyncpg://aifams_test_admin:aifams_test_local@localhost:5432/aifams_test_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
